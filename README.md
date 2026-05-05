@@ -310,3 +310,4 @@ Rota protegida que requer autenticação com token JWT no header Authorization.
 - O token JWT é armazenado no `localStorage` do navegador;
 - O token expira em 1 hora;
 - O CORS está configurado para permitir requisições do frontend na porta `5173`.
+Este projeto foi desenvolvido a partir de uma versão anterior da Calculadora Tributária NAF, sendo atualizado e expandido para a versão 2026.1.
