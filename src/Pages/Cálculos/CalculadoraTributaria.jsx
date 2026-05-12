@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { tokens } from "../../Tema";
 import { useForm } from "react-hook-form";
@@ -410,6 +411,25 @@ showAlert("Cálculos realizados com sucesso!", "success");
         minHeight: "70vh",
       }}
     >
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+        <Button
+          component={Link}
+          to="/faq"
+          variant="outlined"
+          sx={{
+            color: colors.grey[100],
+            borderColor: colors.grey[300],
+            fontWeight: "bold",
+            textTransform: "none",
+            "&:hover": {
+              borderColor: colors.blueAccent[500],
+              color: colors.blueAccent[500],
+            },
+          }}
+        >
+          FAQ
+        </Button>
+      </Box>
       <Typography
         variant="h4"
         align="center"
