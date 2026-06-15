@@ -253,5 +253,37 @@ export const getCurrentUser = () => authService.getUser();
 // Obtém token
 export const getToken = () => authService.getToken();
 
+// SERVIÇOS DOS COMPARATIVOS
+export const comparativoService = {
+  // Salva um comparativo do usuário autenticado
+  async salvar(comparativoData) {
+    return apiRequest("/api/comparativos", {
+      method: "POST",
+      body: JSON.stringify(comparativoData),
+    });
+  },
+
+  // Lista os comparativos do usuário autenticado
+  async listar() {
+    return apiRequest("/api/comparativos", {
+      method: "GET",
+    });
+  },
+
+  // Busca um comparativo específico
+  async buscarPorId(id) {
+    return apiRequest(`/api/comparativos/${id}`, {
+      method: "GET",
+    });
+  },
+
+  // Exclui um comparativo
+  async excluir(id) {
+    return apiRequest(`/api/comparativos/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
 // Exporta a função base também se precisar
 export default apiRequest;

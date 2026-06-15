@@ -29,7 +29,7 @@ import Logo from "../../Assets/NAF.png";
 // Largura do drawer lateral
 const drawerWidth = 240;
 // Itens do menu de navegação
-const navItems = ["Página Inicial", "Tributação", "Contatos", "Cálculo", "Sair"];
+const navItems = ["Página Inicial", "Tributação", "Contatos", "Cálculo", "Histórico", "Sair"];
 
 function Topbar(props) {
   const theme = useTheme();
@@ -73,18 +73,20 @@ function Topbar(props) {
 
   // Manipula clique nos itens do menu
   const handleItemClick = (item, event) => {
-    if (item === "Cálculo") {
-      handleCalculoClick(event); // Abre dropdown
-    } else if (item === "Sair") {
-      handleLogout(); // Redireciona para login e apaga os dados do usuario
-    }else if (item === "Tributação") {
-      navigate("/tributacao")
-    }
-    else {
-      navigate(`/${item.toLowerCase()}`); // Navega para página
-    }
-  };
-
+  if (item === "Cálculo") {
+    handleCalculoClick(event);
+  } else if (item === "Sair") {
+    handleLogout();
+  } else if (item === "Página Inicial") {
+    navigate("/home");
+  } else if (item === "Tributação") {
+    navigate("/tributacao");
+  } else if (item === "Contatos") {
+    navigate("/contatos");
+  } else if (item === "Histórico") {
+    navigate("/historico");
+  }
+};
 
 
   const drawer = (
@@ -326,11 +328,40 @@ function Topbar(props) {
                         width: "100%",
                       },
                     }}
-                    onClick={() => navigate("/Home")}
+                    onClick={() => navigate("/home")}
                   >
                     {item}
                   </Button>
                 );
+                } else if (item === "Histórico") {
+  return (
+    <Button
+      key={item}
+      sx={{
+        position: "relative",
+        color: colors.grey[100],
+        "&:hover": {
+          backgroundColor: colors.primary[300],
+        },
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          left: 0,
+          bottom: 0,
+          width: 0,
+          height: "2px",
+          backgroundColor: "#2563eb",
+          transition: "width 0.3s ease",
+        },
+        "&:hover::after": {
+          width: "100%",
+        },
+      }}
+      onClick={() => navigate("/historico")}
+    >
+      {item}
+    </Button>
+  );
               } else {
                 return (
                   <Button

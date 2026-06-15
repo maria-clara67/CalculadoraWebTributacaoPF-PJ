@@ -5,7 +5,7 @@ export default function AuthGuard({ children }) {
   
   if (!token) {
     // Redireciona para login se não estiver autenticado
-    return <Navigate to="/" />;
+    return <Navigate to="/login" replace />;
   }
   
   return children;

@@ -311,6 +311,8 @@ const Register = () => {
                 }}
               >
                 <MenuItem value="Psicólogo">Psicólogo(a)</MenuItem>
+                <MenuItem value="Arquiteto">Arquiteto(a)</MenuItem>
+                <MenuItem value="Advogado">Advogado(a)</MenuItem>
               </Select>
             </FormControl>
             {/* MENSAGEM DE ERRO DA PROFISSÃO */}

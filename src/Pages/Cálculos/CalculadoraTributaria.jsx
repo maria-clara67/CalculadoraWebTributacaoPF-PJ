@@ -30,6 +30,10 @@ import RendaTooltip from "../../Components/RendaTooltip";
 import CustosTooltip from "../../Components/CustosTooltip";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  comparativoService,
+  isAuthenticated,
+} from "../../services/api";
 
 
 // Componente de calculadora comparativa de tributação (PF x PJ)
@@ -253,46 +257,95 @@ const calcularPJAdvogado = (renda) => {
   };
 };
 
-// Função principal de cálculo que executa PF e PJ e exibe resultados diferenciando Psicologo, Arquitedo e Advogado
-const calcular = (data) => {
-const renda = parseFloat(data.rendaMensal) || 0;
-const custos = parseFloat(data.custosMensais) || 0;
-const profissao = data.profissao;
+const calcular = async (data) => {
+  const renda = parseFloat(data.rendaMensal) || 0;
+  const custos = parseFloat(data.custosMensais) || 0;
+  const profissao = data.profissao;
 
-// Validação adicional do limite de renda
-if (renda > LIMITE_RENDA) {
-   showAlert(
-    `A Renda Mensal não pode exceder ${formatMoney(LIMITE_RENDA)}`,
-    "error"
+  if (renda > LIMITE_RENDA) {
+    showAlert(
+      `A Renda Mensal não pode exceder ${formatMoney(LIMITE_RENDA)}`,
+      "error"
+    );
+    return;
+  }
+
+  let pf;
+  let pj;
+
+  // Psicólogo e Arquiteto utilizam a mesma regra de PJ
+  if (profissao === "Psicólogo" || profissao === "Arquiteto") {
+    pf = calcularPF(renda, custos);
+    pj = calcularPJ(renda);
+  }
+
+  // Advogado utiliza uma regra própria de PJ
+  else if (profissao === "Advogado") {
+    pf = calcularPF(renda, custos);
+    pj = calcularPJAdvogado(renda);
+  } else {
+    showAlert("Selecione uma profissão válida.", "error");
+    return;
+  }
+
+  setResultadoPF(pf);
+  setResultadoPJ(pj);
+  setMostrarResultados(true);
+
+  // Usuário sem login pode calcular, mas o resultado não é salvo
+  if (!isAuthenticated()) {
+    showAlert(
+      "Cálculos realizados. Entre na sua conta para salvar o comparativo.",
+      "success"
+    );
+    return;
+  }
+
+  const melhorOpcao =
+    pf.rendaLiquida > pj.rendaLiquida ? "PF" : "PJ";
+
+  const economiaMensal = Math.abs(
+    pf.rendaLiquida - pj.rendaLiquida
   );
-  return;
-}
 
-let pf;
-let pj;
+  const comparativoData = {
+    profissao,
+    tipoCalculoPJ: pj.tipoCalculo,
 
-// Psicólogo e Arquiteto usam o mesmo cálculo
-if (profissao === "Psicólogo" || profissao === "Arquiteto") {
-  pf = calcularPF(renda, custos);
-  pj = calcularPJ(renda);
-}
+    rendaMensal: renda,
+    custosMensais: custos,
 
-// Advogado usa cálculo próprio de PJ
-else if (profissao === "Advogado") {
-  pf = calcularPF(renda, custos);
-  pj = calcularPJAdvogado(renda);
-}
+    totalTributosPF: pf.imposto,
+    totalTributosPJ: pj.totalPJ,
 
-else {
-  showAlert("Selecione uma profissão válida.", "error");
-  return;
-}
+    rendaLiquidaPF: pf.rendaLiquida,
+    rendaLiquidaPJ: pj.rendaLiquida,
 
-setResultadoPF(pf);
-setResultadoPJ(pj);
-setMostrarResultados(true);
-showAlert("Cálculos realizados com sucesso!", "success");
+    melhorOpcao,
+    economiaMensal,
+
+    dadosPF: pf,
+    dadosPJ: pj,
+  };
+
+  try {
+    await comparativoService.salvar(comparativoData);
+
+    showAlert(
+      "Cálculos realizados e comparativo salvo com sucesso!",
+      "success"
+    );
+  } catch (error) {
+    console.error("Erro ao salvar comparativo:", error);
+
+    showAlert(
+      "O cálculo foi realizado, mas não foi possível salvar o comparativo.",
+      "error"
+    );
+  }
 };
+
+
 
   // Função para simular envio de e-mail com resultados de PF e PJ
   const enviarEmail = (pf, pj) => {

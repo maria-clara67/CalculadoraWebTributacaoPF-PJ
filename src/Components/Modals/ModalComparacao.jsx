@@ -25,6 +25,12 @@ import {
 import { tokens } from "../../Tema";
 import GoBack from "../GoBack";
 import CalculateIcon from "@mui/icons-material/Calculate";
+import {
+  comparativoService,
+  isAuthenticated,
+} from "../../services/api";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const ModalComparacao = () => {
   const theme = useTheme();
@@ -80,10 +86,19 @@ const ModalComparacao = () => {
 
   // OBSERVAÇÃO DOS CAMPOS PARA VALIDAÇÃO EM TEMPO REAL
   const watchedFields = watch();
-  const areAllFieldsFilled =
-    watchedFields.rendaMensal &&
-    watchedFields.custosMensais &&
-    watchedFields.profissao;
+  const campoPreenchido = (valor) => {
+  return (
+    valor !== "" &&
+    valor !== undefined &&
+    valor !== null &&
+    !Number.isNaN(valor)
+  );
+};
+
+const areAllFieldsFilled =
+  campoPreenchido(watchedFields.rendaMensal) &&
+  campoPreenchido(watchedFields.custosMensais) &&
+  campoPreenchido(watchedFields.profissao);
 
   // CONTROLE DE ESTADO DO BOTÃO DE CÁLCULO
   const isButtonDisabled = !areAllFieldsFilled;
@@ -97,8 +112,9 @@ const ModalComparacao = () => {
   const [alertSeverity, setAlertSeverity] = useState("success");
 
   // CONSTANTES PARA CÁLCULOS TRIBUTÁRIOS
-  const SALARIO_MINIMO = 1518.0;
+  const SALARIO_MINIMO = 1621.0;
   const LIMITE_RENDA = 15000.0;
+  const DESCONTO_SIMPLIFICADO_IR = 607.2;
 
   // FUNÇÃO DE FORMATAÇÃO MONETÁRIA
   const formatMoney = (value) => {
@@ -129,117 +145,360 @@ const ModalComparacao = () => {
   };
 
   // CÁLCULO DE PESSOA FÍSICA (IMPOSTO DE RENDA)
-  const calcularPF = (renda, custos) => {
-    const baseCalculo = renda - custos;
-    let imposto = 0;
-    let aliquota = 0;
-    let parcelaADeduzir = 0;
-    let faixa = "";
+const calcularPF = (renda, custos) => {
+  const baseCalculo = Math.max(
+    0,
+    renda - custos - DESCONTO_SIMPLIFICADO_IR
+  );
 
-    // TABELA PROGRESSIVA DO IRPF 2024
-    if (baseCalculo <= 2428.8) {
-      imposto = 0;
-      aliquota = 0;
-      parcelaADeduzir = 0;
-      faixa = "Até R$ 2.428,80";
-    } else if (baseCalculo <= 2826.65) {
-      aliquota = 7.5;
-      parcelaADeduzir = 182.16;
-      imposto = baseCalculo * 0.075 - parcelaADeduzir;
-      faixa = "De R$ 2.428,81 até R$ 2.826,65";
-    } else if (baseCalculo <= 3751.05) {
-      aliquota = 15;
-      parcelaADeduzir = 394.16;
-      imposto = baseCalculo * 0.15 - parcelaADeduzir;
-      faixa = "De R$ 2.826,66 até R$ 3.751,05";
-    } else if (baseCalculo <= 4664.68) {
-      aliquota = 22.5;
-      parcelaADeduzir = 675.49;
-      imposto = baseCalculo * 0.225 - parcelaADeduzir;
-      faixa = "De R$ 3.751,06 até R$ 4.664,68";
-    } else {
-      aliquota = 27.5;
-      parcelaADeduzir = 908.73;
-      imposto = baseCalculo * 0.275 - parcelaADeduzir;
-      faixa = "Acima de R$ 4.664,68";
-    }
+  let impostoCalculado = 0;
+  let aliquota = 0;
+  let parcelaADeduzir = 0;
+  let faixa = "";
+  let redutor = 0;
 
-    const rendaLiquida = renda - imposto;
-    const aliquotaEfetiva = renda > 0 ? (imposto / renda) * 100 : 0;
+  if (baseCalculo <= 2428.8) {
+    aliquota = 0;
+    parcelaADeduzir = 0;
+    faixa = "Até R$ 2.428,80";
+  } else if (baseCalculo <= 2826.65) {
+    aliquota = 7.5;
+    parcelaADeduzir = 182.16;
+    impostoCalculado = baseCalculo * 0.075 - parcelaADeduzir;
+    faixa = "De R$ 2.428,81 até R$ 2.826,65";
+  } else if (baseCalculo <= 3751.05) {
+    aliquota = 15;
+    parcelaADeduzir = 394.16;
+    impostoCalculado = baseCalculo * 0.15 - parcelaADeduzir;
+    faixa = "De R$ 2.826,66 até R$ 3.751,05";
+  } else if (baseCalculo <= 4664.68) {
+    aliquota = 22.5;
+    parcelaADeduzir = 675.49;
+    impostoCalculado = baseCalculo * 0.225 - parcelaADeduzir;
+    faixa = "De R$ 3.751,06 até R$ 4.664,68";
+  } else {
+    aliquota = 27.5;
+    parcelaADeduzir = 908.73;
+    impostoCalculado = baseCalculo * 0.275 - parcelaADeduzir;
+    faixa = "Acima de R$ 4.664,68";
+  }
 
-    return {
-      renda,
-      custos,
-      baseCalculo,
-      faixa,
-      aliquota,
-      parcelaADeduzir,
-      imposto: Math.max(0, imposto),
-      rendaLiquida,
-      aliquotaEfetiva,
-    };
+  impostoCalculado = Math.max(0, impostoCalculado);
+
+  if (renda <= 5000) {
+    redutor = Math.min(impostoCalculado, 312.89);
+  } else if (renda <= 7350) {
+    redutor = Math.max(0, 978.62 - 0.133145 * renda);
+  }
+
+  const imposto = Math.max(0, impostoCalculado - redutor);
+  const rendaLiquida = renda - imposto;
+  const aliquotaEfetiva = renda > 0 ? (imposto / renda) * 100 : 0;
+
+  return {
+    renda,
+    custos,
+    descontoSimplificado: DESCONTO_SIMPLIFICADO_IR,
+    baseCalculo,
+    faixa,
+    aliquota,
+    parcelaADeduzir,
+    impostoCalculado,
+    redutor,
+    imposto,
+    rendaLiquida,
+    aliquotaEfetiva,
   };
+};
 
   // CÁLCULO DE PESSOA JURÍDICA (SIMPLES NACIONAL)
-  const calcularPJ = (renda) => {
-    const simplesNacional = renda * 0.06; // 6% do Simples Nacional
-    const proLabore28 = renda * 0.28; // 28% para pró-labore
-    const proLabore = Math.max(proLabore28, SALARIO_MINIMO); // Mínimo é salário mínimo
-    const inss = proLabore * 0.11; // 11% de INSS sobre pró-labore
+const calcularPJ = (renda) => {
+  const simplesNacional = renda * 0.06;
 
-    // CÁLCULO DO IR SOBRE PRÓ-LABORE (mesma tabela da PF)
-    let irProLabore = 0;
-    if (proLabore <= 2428.8) {
-      irProLabore = 0;
-    } else if (proLabore <= 2826.65) {
-      irProLabore = proLabore * 0.075 - 182.16;
-    } else if (proLabore <= 3751.05) {
-      irProLabore = proLabore * 0.15 - 394.16;
-    } else if (proLabore <= 4664.68) {
-      irProLabore = proLabore * 0.225 - 675.49;
-    } else {
-      irProLabore = proLabore * 0.275 - 908.73;
-    }
+  const proLabore = Math.max(
+    renda * 0.28,
+    SALARIO_MINIMO
+  );
 
-    irProLabore = Math.max(0, irProLabore);
-    const totalPJ = simplesNacional + inss + irProLabore;
-    const rendaLiquida = renda - totalPJ;
+  const inss = proLabore * 0.11;
 
-    return {
-      renda,
-      proLabore,
-      simplesNacional,
-      inss,
-      irProLabore,
-      totalPJ,
-      rendaLiquida,
-    };
+  const resultadoIRProLabore = calcularPF(proLabore, 0);
+  const irProLabore = resultadoIRProLabore.imposto;
+
+  const totalPJ = simplesNacional + inss + irProLabore;
+  const rendaLiquida = renda - totalPJ;
+
+  return {
+    renda,
+    proLabore,
+    simplesNacional,
+    inss,
+    irProLabore,
+    totalPJ,
+    rendaLiquida,
+    tipoCalculo: "padrao",
   };
+};
+
+const calcularPJAdvogado = (renda) => {
+  const simplesNacional = renda * 0.045;
+  const proLabore = SALARIO_MINIMO;
+
+  const inss = proLabore * 0.11;
+  const inssPatronal = proLabore * 0.2;
+
+  const resultadoIRProLabore = calcularPF(proLabore, 0);
+  const irProLabore = resultadoIRProLabore.imposto;
+
+  const totalPJ =
+    simplesNacional +
+    inss +
+    inssPatronal +
+    irProLabore;
+
+  const rendaLiquida = renda - totalPJ;
+
+  return {
+    renda,
+    proLabore,
+    simplesNacional,
+    inss,
+    inssPatronal,
+    irProLabore,
+    totalPJ,
+    rendaLiquida,
+    tipoCalculo: "advogado",
+  };
+};
 
   // FUNÇÃO PRINCIPAL DE CÁLCULO
-  const calcular = (data) => {
-    const renda = parseFloat(data.rendaMensal) || 0;
-    const custos = parseFloat(data.custosMensais) || 0;
+ const calcular = async (data) => {
+  const renda = parseFloat(data.rendaMensal) || 0;
+  const custos = parseFloat(data.custosMensais) || 0;
+  const profissao = data.profissao;
 
-    // VALIDAÇÃO DE LIMITE DE RENDA
-    if (renda > LIMITE_RENDA) {
-      showAlert(
-        `A Renda Mensal não pode exceder ${formatMoney(LIMITE_RENDA)}`,
-        "error"
-      );
-      return;
-    }
+  if (renda > LIMITE_RENDA) {
+    showAlert(
+      `A Renda Mensal não pode exceder ${formatMoney(LIMITE_RENDA)}`,
+      "error"
+    );
+    return;
+  }
 
-    // EXECUTA CÁLCULOS PF E PJ
-    const pf = calcularPF(renda, custos);
-    const pj = calcularPJ(renda);
+  let pf;
+  let pj;
 
-    // ARMAZENA RESULTADOS E MOSTRA UI
-    setResultadoPF(pf);
-    setResultadoPJ(pj);
-    setMostrarResultados(true);
-    showAlert("Cálculos realizados com sucesso!", "success");
-  };
+  if (profissao === "Psicólogo" || profissao === "Arquiteto") {
+    pf = calcularPF(renda, custos);
+    pj = calcularPJ(renda);
+  } else if (profissao === "Advogado") {
+    pf = calcularPF(renda, custos);
+    pj = calcularPJAdvogado(renda);
+  } else {
+    showAlert("Selecione uma profissão válida.", "error");
+    return;
+  }
+
+  setResultadoPF(pf);
+  setResultadoPJ(pj);
+  setMostrarResultados(true);
+
+  if (!isAuthenticated()) {
+    showAlert(
+      "Cálculo realizado. Entre na conta para salvar o comparativo.",
+      "success"
+    );
+    return;
+  }
+
+  const melhorOpcao =
+    pf.rendaLiquida > pj.rendaLiquida ? "PF" : "PJ";
+
+  const economiaMensal = Math.abs(
+    pf.rendaLiquida - pj.rendaLiquida
+  );
+
+  try {
+    await comparativoService.salvar({
+      profissao,
+      tipoCalculoPJ: pj.tipoCalculo,
+      rendaMensal: renda,
+      custosMensais: custos,
+      totalTributosPF: pf.imposto,
+      totalTributosPJ: pj.totalPJ,
+      rendaLiquidaPF: pf.rendaLiquida,
+      rendaLiquidaPJ: pj.rendaLiquida,
+      melhorOpcao,
+      economiaMensal,
+      dadosPF: pf,
+      dadosPJ: pj,
+    });
+
+    showAlert(
+      "Cálculos realizados e comparativo salvo com sucesso!",
+      "success"
+    );
+  } catch (error) {
+    console.error("Erro ao salvar comparativo:", error);
+
+    showAlert(
+      "O cálculo foi realizado, mas não foi possível salvar o comparativo.",
+      "error"
+    );
+  }
+};
+
+const gerarPDFComparativo = () => {
+  if (!resultadoPF || !resultadoPJ) {
+    showAlert(
+      "Calcule os resultados antes de gerar o PDF.",
+      "error"
+    );
+    return;
+  }
+
+  const profissao = watch("profissao");
+
+  const melhorOpcao =
+    resultadoPF.rendaLiquida > resultadoPJ.rendaLiquida
+      ? "Pessoa Física (PF)"
+      : "Pessoa Jurídica (PJ)";
+
+  const economiaMensal = Math.abs(
+    resultadoPF.rendaLiquida - resultadoPJ.rendaLiquida
+  );
+
+  const doc = new jsPDF();
+
+  doc.setFontSize(16);
+  doc.text("Comparativo Tributário - PF x PJ", 14, 20);
+
+  doc.setFontSize(11);
+  doc.text(`Profissão: ${profissao}`, 14, 32);
+  doc.text(
+    `Renda mensal: ${formatMoney(resultadoPF.renda)}`,
+    14,
+    40
+  );
+  doc.text(
+    `Custos mensais: ${formatMoney(resultadoPF.custos)}`,
+    14,
+    48
+  );
+
+  autoTable(doc, {
+    startY: 60,
+    head: [["Pessoa Física (PF)", "Valor"]],
+    body: [
+      [
+        "Base de cálculo",
+        formatMoney(resultadoPF.baseCalculo),
+      ],
+      ["Faixa de tributação", resultadoPF.faixa],
+      ["Alíquota", `${resultadoPF.aliquota}%`],
+      [
+        "Parcela a deduzir",
+        formatMoney(resultadoPF.parcelaADeduzir),
+      ],
+      [
+        "Imposto antes do redutor",
+        formatMoney(resultadoPF.impostoCalculado || 0),
+      ],
+      [
+        "Redutor aplicado",
+        formatMoney(resultadoPF.redutor || 0),
+      ],
+      [
+        "Imposto final",
+        formatMoney(resultadoPF.imposto),
+      ],
+      [
+        "Renda líquida",
+        formatMoney(resultadoPF.rendaLiquida),
+      ],
+      [
+        "Alíquota efetiva",
+        `${resultadoPF.aliquotaEfetiva.toFixed(2)}%`,
+      ],
+    ],
+  });
+
+  const dadosPJ = [
+    ["Receita mensal", formatMoney(resultadoPJ.renda)],
+    ["Pró-labore", formatMoney(resultadoPJ.proLabore)],
+    [
+      "Simples Nacional",
+      formatMoney(resultadoPJ.simplesNacional),
+    ],
+    [
+      "INSS sobre pró-labore",
+      formatMoney(resultadoPJ.inss),
+    ],
+  ];
+
+  if (resultadoPJ.inssPatronal !== undefined) {
+    dadosPJ.push([
+      "INSS patronal",
+      formatMoney(resultadoPJ.inssPatronal),
+    ]);
+  }
+
+  dadosPJ.push(
+    [
+      "IR sobre pró-labore",
+      formatMoney(resultadoPJ.irProLabore),
+    ],
+    [
+      "Tipo de cálculo",
+      resultadoPJ.tipoCalculo === "advogado"
+        ? "Advocacia - Anexo IV"
+        : "Psicologia/Arquitetura - Anexo III",
+    ],
+    [
+      "Total de tributos PJ",
+      formatMoney(resultadoPJ.totalPJ),
+    ],
+    [
+      "Renda líquida PJ",
+      formatMoney(resultadoPJ.rendaLiquida),
+    ]
+  );
+
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 10,
+    head: [["Pessoa Jurídica (PJ)", "Valor"]],
+    body: dadosPJ,
+  });
+
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 10,
+    head: [["Comparação", "Resultado"]],
+    body: [
+      ["Melhor opção", melhorOpcao],
+      [
+        "Economia mensal estimada",
+        formatMoney(economiaMensal),
+      ],
+      [
+        "Tributos PF",
+        formatMoney(resultadoPF.imposto),
+      ],
+      [
+        "Tributos PJ",
+        formatMoney(resultadoPJ.totalPJ),
+      ],
+    ],
+  });
+
+  doc.setFontSize(9);
+  doc.text(
+    "Os valores apresentados são estimativas para fins acadêmicos.",
+    14,
+    doc.lastAutoTable.finalY + 15
+  );
+
+  doc.save("comparativo-tributario.pdf");
+};
 
   return (
     <div>
@@ -491,6 +750,8 @@ const ModalComparacao = () => {
                         }}
                       >
                         <MenuItem value="Psicólogo">Psicólogo(a)</MenuItem>
+                        <MenuItem value="Arquiteto">Arquiteto(a)</MenuItem>
+                        <MenuItem value="Advogado">Advogado(a)</MenuItem>
                       </Select>
                     </FormControl>
                   </Box>
@@ -613,6 +874,21 @@ const ModalComparacao = () => {
                                 {formatMoney(resultadoPJ.totalPJ)}
                               </strong>
                             </Typography>
+
+                            {resultadoPJ.inssPatronal !== undefined && (
+                              <Typography variant="body2" sx={{ mb: 1 }}>
+                                INSS Patronal:{" "}
+                                <strong>{formatMoney(resultadoPJ.inssPatronal)}</strong>
+                              </Typography>
+                              )}
+                              <Typography variant="body2" sx={{ mb: 1 }}>
+                                Tipo de cálculo:{" "}
+                                <strong>
+                                  {resultadoPJ.tipoCalculo === "advogado"
+                                  ? "Advocacia — Anexo IV"
+                                  : "Psicologia/Arquitetura — Anexo III"}
+                                </strong>
+                              </Typography>
                             <Typography variant="body2" sx={{ mb: 1 }}>
                               Renda Líquida:{" "}
                               <strong
@@ -687,6 +963,34 @@ const ModalComparacao = () => {
                       </Grid>
                     </Box>
                   </Paper>
+
+                  <Box
+  sx={{
+    display: "flex",
+    justifyContent: "center",
+    mt: 3,
+    mb: 2,
+  }}
+>
+  <Button
+    variant="contained"
+    onClick={gerarPDFComparativo}
+    sx={{
+      backgroundColor: colors.redAccent[500],
+      color: colors.grey[900],
+      fontWeight: "bold",
+      px: 4,
+      py: 1.5,
+      textTransform: "none",
+      "&:hover": {
+        backgroundColor: colors.redAccent[600],
+        color: colors.grey[900],
+      },
+    }}
+  >
+    Baixar PDF do comparativo
+  </Button>
+</Box>
 
                   {/* SEÇÃO DE ENVIO POR EMAIL */}
                   <Box

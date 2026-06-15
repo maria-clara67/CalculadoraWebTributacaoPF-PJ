@@ -1,0 +1,40 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  username     String
+  profissao    String
+  email        String        @unique
+  password     String
+  createdAt    DateTime      @default(now())
+  comparativos Comparativo[]
+}
+
+model Comparativo {
+  id                 Int      @id @default(autoincrement())
+  profissao          String
+  tipoCalculoPJ      String
+  rendaMensal        Decimal  @db.Decimal(10, 2)
+  custosMensais      Decimal  @db.Decimal(10, 2)
+  totalTributosPF    Decimal  @db.Decimal(10, 2)
+  totalTributosPJ    Decimal  @db.Decimal(10, 2)
+  rendaLiquidaPF     Decimal  @db.Decimal(10, 2)
+  rendaLiquidaPJ     Decimal  @db.Decimal(10, 2)
+  melhorOpcao        String
+  economiaMensal     Decimal  @db.Decimal(10, 2)
+  dadosPF            Json
+  dadosPJ            Json
+  createdAt          DateTime @default(now())
+
+  userId             Int
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
