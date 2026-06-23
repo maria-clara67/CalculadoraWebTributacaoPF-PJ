@@ -275,7 +275,10 @@ const calcularPJAdvogado = (renda) => {
  const calcular = async (data) => {
   const renda = parseFloat(data.rendaMensal) || 0;
   const custos = parseFloat(data.custosMensais) || 0;
-  const profissao = data.profissao;
+  const profissao = String(data.profissao || "")
+  .toLowerCase()
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "");
 
   if (renda > LIMITE_RENDA) {
     showAlert(
@@ -288,16 +291,19 @@ const calcularPJAdvogado = (renda) => {
   let pf;
   let pj;
 
-  if (profissao === "Psicólogo" || profissao === "Arquiteto") {
-    pf = calcularPF(renda, custos);
-    pj = calcularPJ(renda);
-  } else if (profissao === "Advogado") {
-    pf = calcularPF(renda, custos);
-    pj = calcularPJAdvogado(renda);
-  } else {
-    showAlert("Selecione uma profissão válida.", "error");
-    return;
-  }
+if (profissao.includes("advogado")) {
+  pf = calcularPF(renda, custos);
+  pj = calcularPJAdvogado(renda);
+} else if (
+  profissao.includes("psicologo") ||
+  profissao.includes("arquiteto")
+) {
+  pf = calcularPF(renda, custos);
+  pj = calcularPJ(renda);
+} else {
+  showAlert("Selecione uma profissão válida.", "error");
+  return;
+}
 
   setResultadoPF(pf);
   setResultadoPJ(pj);
@@ -749,9 +755,9 @@ const gerarPDFComparativo = () => {
                           },
                         }}
                       >
-                        <MenuItem value="Psicólogo">Psicólogo(a)</MenuItem>
-                        <MenuItem value="Arquiteto">Arquiteto(a)</MenuItem>
-                        <MenuItem value="Advogado">Advogado(a)</MenuItem>
+                        <MenuItem value="psicologo">Psicólogo(a)</MenuItem>
+                        <MenuItem value="arquiteto">Arquiteto(a)</MenuItem>
+                        <MenuItem value="advogado">Advogado(a)</MenuItem>
                       </Select>
                     </FormControl>
                   </Box>
